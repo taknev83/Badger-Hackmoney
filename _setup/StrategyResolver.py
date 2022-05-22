@@ -11,14 +11,25 @@ class StrategyResolver(StrategyCoreResolver):
         (Strategy Must Implement)
         """
         strategy = self.manager.strategy
-        return {}
+        return {
+            "Want": strategy.want(),
+            # "Reward": strategy.REWARD(),
+            # "XBoo": strategy.XBOO(),
+            # "XBooStaking": strategy.XBOOStaking(),
+        }
 
     def hook_after_confirm_withdraw(self, before, after, params):
         """
         Specifies extra check for ordinary operation on withdrawal
         Use this to verify that balances in the get_strategy_destinations are properly set
         """
-        assert True
+        # want is withdrawn from the Lending pool
+        # assert after.balances("want", "pool") < before.balances("want", "pool")
+
+        # strategy balanceOfPool goes down
+        assert after.get("strategy.balanceOfPool") < before.get(
+            "strategy.balanceOfPool"
+        )
 
     def hook_after_confirm_deposit(self, before, after, params):
         """
@@ -32,22 +43,28 @@ class StrategyResolver(StrategyCoreResolver):
         Specifies extra check for ordinary operation on earn
         Use this to verify that balances in the get_strategy_destinations are properly set
         """
-        assert True
+        # want in the vault goes down
+        assert after.balances("want", "sett") < before.balances("want", "sett")
 
-    # def confirm_harvest(self, before, after, tx):
-    #     """
-    #     Verfies that the Harvest produced yield and fees
-    #     NOTE: This overrides default check, use only if you know what you're doing
-    #     """
-    #     console.print("=== Compare Harvest ===")
-    #     self.manager.printCompare(before, after)
-    #     self.confirm_harvest_state(before, after, tx)
+        # want invested by the strategy goes up
+        assert after.get("strategy.balanceOfPool") > before.get(
+            "strategy.balanceOfPool"
+        )
 
-    #     valueGained = after.get("sett.getPricePerFullShare") > before.get(
-    #         "sett.getPricePerFullShare"
-    #     )
+    def confirm_harvest(self, before, after, tx):
+        #     """
+        #     Verfies that the Harvest produced yield and fees
+        #     NOTE: This overrides default check, use only if you know what you're doing
+        #     """
+        console.print("=== Compare Harvest ===")
+        self.manager.printCompare(before, after)
+        self.confirm_harvest_state(before, after, tx)
 
-    #     assert True
+        valueGained = after.get("sett.getPricePerFullShare") > before.get(
+            "sett.getPricePerFullShare"
+        )
+
+        assert valueGained
 
     def confirm_tend(self, before, after, tx):
         """
