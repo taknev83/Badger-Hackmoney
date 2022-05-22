@@ -1,3 +1,37 @@
+# Badger - Hackmoney Submission 
+
+## Strategy 
+
+This strategy uses Badger strategy 1.5 Brownie mix template & builts on top of it.
+
+ - BOO token staking in [Spirit swap](https://spooky.fi/#/pools) in Fantom network, 
+ - then receives xBOO token, 
+ -  which is then staked to receive SD token, 
+ -  which is harvested for more rewards
+
+## APR
+ - This strategy APR has two elements, 
+    - BOO token staking rewards (autocomponding, approx 34% while writing this) 
+    - and XBOO token staking rewards in SD token (harvestable, approx 5% while writing this)
+    - Combined APR is approx 40%
+
+
+## Tests
+- All the tests are passing in Fantom mainnet fork
+
+  ![testImage](images/tests.png?raw=true)
+
+## Strategy Diagram
+
+  ![stratDia](images/strat_dia.jpg?raw=true)
+
+
+
+
+<Br>
+___________________________________________________________
+
+<Br>
 
 # Badger Strategy V1.5 Brownie Mix
 

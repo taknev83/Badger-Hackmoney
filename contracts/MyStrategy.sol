@@ -22,17 +22,17 @@ contract MyStrategy is BaseStrategy {
     // address public lpComponent; // Token that represents ownership in a pool, not always used
     // address public reward; // Token we farm
 
-    address constant BADGER = 0x3472A5A71965499acd81997a54BBA8D852C6E53d;
+    // address constant BADGER = 0x3472A5A71965499acd81997a54BBA8D852C6E53d;
 
-    address constant XBOO = 0xa48d959AE2E88f1dAA7D5F611E01908106dE7598;
-    address constant REWARD = 0x412a13C109aC30f0dB80AD3Bd1DeFd5D0A6c0Ac6;
-    address constant XBOOSTAKING = 0x2352b745561e7e6FCD03c093cE7220e3e126ace0;
+    address constant XBOO = 0xa48d959AE2E88f1dAA7D5F611E01908106dE7598; // Spookyswap: xBOO Token
+    address constant XBOOSTAKING = 0x2352b745561e7e6FCD03c093cE7220e3e126ace0; // Spookyswap: AcaLab xBOO Staking
+
+    // As the Reward token address & pool ID changes, the values are set after initialization
+    address public REWARD;
+    uint256 public pid;
     // for swapping
     address constant USDC = 0x04068DA6C83AFCFA0e13ba15A6696662335D5B75;
     address constant DAI = 0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E;
-
-    //Pool Id
-    uint256 pid = 34;
 
     // Spooky Router
     IRouter public constant ROUTER = IRouter(0xF491e7B69E4244ad4002BC14e878a34207E38c29);
@@ -46,6 +46,12 @@ contract MyStrategy is BaseStrategy {
         __BaseStrategy_init(_vault);
         /// @dev Add config here
         want = _wantConfig[0];
+
+        REWARD = 0x412a13C109aC30f0dB80AD3Bd1DeFd5D0A6c0Ac6; // Stader (wormhole) (SD)
+
+        //Pool Id of SD Token in xBOO staking contract
+        pid = 34;
+
         IERC20Upgradeable(want).safeApprove(address(XBOOTOKEN), type(uint256).max);
         IERC20Upgradeable(XBOO).safeApprove(address(XBOOSTAKING_CONTRACT), type(uint256).max);
 
@@ -78,7 +84,6 @@ contract MyStrategy is BaseStrategy {
         protectedTokens[0] = want;
         protectedTokens[1] = XBOO;
         protectedTokens[2] = REWARD;
-        // protectedTokens[3] = XBOOSTAKING;
         return protectedTokens;
     }
 
@@ -107,15 +112,17 @@ contract MyStrategy is BaseStrategy {
         if (_amount > balanceOfPool()) {
             _amount = balanceOfPool();
         }
+        uint256 balBefore = balanceOfWant();
         uint256 reqXBooToWithdraw = XBOOTOKEN.BOOForxBOO(_amount);
         XBOOSTAKING_CONTRACT.withdraw(pid, reqXBooToWithdraw);
         XBOOTOKEN.leave(reqXBooToWithdraw);
-        return _amount;
+        uint256 balAfter = balanceOfWant();
+        return balAfter.sub(balBefore);
     }
 
     /// @dev Does this function require `tend` to be called?
     function _isTendable() internal pure override returns (bool) {
-        return false; // Change to true if the strategy should be tended
+        return true; // Change to true if the strategy should be tended
     }
 
     function _harvest() internal override returns (TokenAmount[] memory harvested) {
@@ -151,6 +158,10 @@ contract MyStrategy is BaseStrategy {
         // Report profit for the want increase (NOTE: We are not getting perf fee on AAVE APY with this code)
         _reportToVault(wantHarvested);
 
+        _withdrawAll();
+        uint256 wantBalance = IERC20Upgradeable(want).balanceOf(address(this)); // Cache to save gas on worst case
+        _deposit(wantBalance);
+
         // Use this if your strategy doesn't sell the extra tokens
         // This will take fees and send the token to the badgerTree
         // _processExtraToken(token, amount);
@@ -160,19 +171,21 @@ contract MyStrategy is BaseStrategy {
 
     // Example tend is a no-op which returns the values, could also just revert
     function _tend() internal override returns (TokenAmount[] memory tended) {
-        // Nothing tended
-        tended = new TokenAmount[](2);
-        tended[0] = TokenAmount(want, 0);
-        tended[1] = TokenAmount(BADGER, 0);
+        uint256 balanceToTend = balanceOfWant();
+        tended = new TokenAmount[](1);
+        if (balanceToTend > 0) {
+            _deposit(balanceToTend);
+            tended[0] = TokenAmount(want, balanceToTend);
+        } else {
+            tended[0] = TokenAmount(want, 0);
+        }
         return tended;
     }
-
-    // function _getBooforXBoo(_booAmoount) internal returns
 
     /// @dev Return the balance (in want) that the strategy has invested somewhere
     function balanceOfPool() public view override returns (uint256) {
         // Change this to return the amount of want invested in another protocol
-        (uint256 xBooBalance, uint256 rewardDebt) = XBOOSTAKING_CONTRACT.userInfo(pid, address(this));
+        (uint256 xBooBalance, ) = XBOOSTAKING_CONTRACT.userInfo(pid, address(this));
         uint256 booBalance = XBOOTOKEN.xBOOForBOO(xBooBalance);
         return booBalance;
     }
@@ -180,10 +193,9 @@ contract MyStrategy is BaseStrategy {
     /// @dev Return the balance of rewards that the strategy has accrued
     /// @notice Used for offChain APY and Harvest Health monitoring
     function balanceOfRewards() external view override returns (TokenAmount[] memory rewards) {
-        // Rewards are 0
-        rewards = new TokenAmount[](2);
-        rewards[0] = TokenAmount(want, 0);
-        rewards[1] = TokenAmount(BADGER, 0);
+        (uint256 accruedRewards, ) = XBOOSTAKING_CONTRACT.userInfo(pid, address(this));
+        rewards = new TokenAmount[](1);
+        rewards[0] = TokenAmount(REWARD, accruedRewards);
         return rewards;
     }
 }

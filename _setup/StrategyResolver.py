@@ -74,4 +74,8 @@ class StrategyResolver(StrategyCoreResolver):
 
         (Strategy Must Implement)
         """
-        assert True
+        if before.get("strategy.balanceOfWant") > 0:
+            assert after.get("strategy.balanceOfWant") == 0
+            assert after.get("strategy.balanceOfPool") > before.get(
+                "strategy.balanceOfPool"
+            )
